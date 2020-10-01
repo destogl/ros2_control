@@ -19,6 +19,7 @@
 
 #include <memory>
 #include <string>
+#include <vector>
 
 #include "pluginlib/class_loader.hpp"
 
@@ -35,9 +36,41 @@ public:
   virtual ~ControllerLoaderPluginlib() = default;
 
   CONTROLLER_MANAGER_PUBLIC
-  controller_interface::ControllerInterfaceSharedPtr create(const std::string & controller_type);
+  controller_interface::ControllerInterfaceSharedPtr create(const std::string & controller_type)
+  override;
 
   // Only for the interface compatibility
+  CONTROLLER_MANAGER_PUBLIC
+  controller_interface::ControllerInterfaceNewComponentsSharedPtr create_new_components(
+    const std::string & controller_type);
+
+  CONTROLLER_MANAGER_PUBLIC
+  bool is_available(const std::string & controller_type) const override;
+
+  CONTROLLER_MANAGER_PUBLIC
+  std::vector<std::string> get_declared_classes() const override;
+
+  CONTROLLER_MANAGER_PUBLIC
+  void reload() override;
+
+private:
+  std::shared_ptr<pluginlib::ClassLoader<controller_interface::ControllerInterface>> loader_;
+};
+
+class ControllerLoaderPluginlibNewComponents : public ControllerLoaderInterface
+{
+public:
+  CONTROLLER_MANAGER_PUBLIC
+  ControllerLoaderPluginlibNewComponents();
+
+  CONTROLLER_MANAGER_PUBLIC
+  virtual ~ControllerLoaderPluginlibNewComponents() = default;
+
+  // Only for the interface compatibility
+  CONTROLLER_MANAGER_PUBLIC
+  controller_interface::ControllerInterfaceSharedPtr create(const std::string & controller_type);
+
+  //TODO(anyone) new loader with components - rename to create
   CONTROLLER_MANAGER_PUBLIC
   controller_interface::ControllerInterfaceNewComponentsSharedPtr create_new_components(
     const std::string & controller_type);
@@ -46,7 +79,8 @@ public:
   bool is_available(const std::string & controller_type) const;
 
 private:
-  std::shared_ptr<pluginlib::ClassLoader<controller_interface::ControllerInterface>> loader_;
+  std::shared_ptr<pluginlib::ClassLoader<controller_interface::ControllerInterfaceNewComponents>>
+    loader_;
 };
 
 class ControllerLoaderPluginlibNewComponents : public ControllerLoaderInterface

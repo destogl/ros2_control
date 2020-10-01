@@ -16,15 +16,15 @@
 
 #include <memory>
 #include <string>
+#include <vector>
 
 namespace controller_manager
 {
 
 ControllerLoaderPluginlib::ControllerLoaderPluginlib()
-: ControllerLoaderInterface(),
-  loader_(std::make_shared<pluginlib::ClassLoader<controller_interface::ControllerInterface>>(
-      "controller_interface", "controller_interface::ControllerInterface"))
+: ControllerLoaderInterface("controller_interface::ControllerInterface")
 {
+  reload();
 }
 
 controller_interface::ControllerInterfaceSharedPtr ControllerLoaderPluginlib::create(
@@ -44,6 +44,45 @@ ControllerLoaderPluginlib::create_new_components(
 bool ControllerLoaderPluginlib::is_available(const std::string & controller_type) const
 {
   return loader_->isClassAvailable(controller_type);
+}
+  
+std::vector<std::string> ControllerLoaderPluginlib::get_declared_classes() const
+{
+  return loader_->getDeclaredClasses();
+}
+
+void ControllerLoaderPluginlib::reload()
+{
+  loader_ = std::make_shared<pluginlib::ClassLoader<controller_interface::ControllerInterface>>(
+    "controller_interface", "controller_interface::ControllerInterface");
+}
+
+ControllerLoaderPluginlibNewComponents::ControllerLoaderPluginlibNewComponents()
+: ControllerLoaderInterface(),
+loader_(std::make_shared<pluginlib::ClassLoader<controller_interface::ControllerInterfaceNewComponents>>(
+  "controller_interface", "controller_interface::ControllerInterfaceNewComponents"))
+{
+}
+
+bool ControllerLoaderPluginlibNewComponents::is_available(const std::string & controller_type) const
+{
+  return loader_->isClassAvailable(controller_type);
+}
+
+// Only for the interface compatibility
+CONTROLLER_MANAGER_PUBLIC
+controller_interface::ControllerInterfaceSharedPtr
+ControllerLoaderPluginlibNewComponents::create(const std::string & /*controller_type*/)
+{
+  return nullptr;
+}
+
+//TODO(anyone) new loader with components - rename to create
+controller_interface::ControllerInterfaceNewComponentsSharedPtr
+ControllerLoaderPluginlibNewComponents::create_new_components(
+  const std::string & controller_type)
+{
+  return loader_->createSharedInstance(controller_type);
 }
 
 
