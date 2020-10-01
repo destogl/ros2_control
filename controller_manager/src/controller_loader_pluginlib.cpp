@@ -41,14 +41,14 @@ ControllerLoaderPluginlib::create_new_components(
   return nullptr;
 }
 
-bool ControllerLoaderPluginlib::is_available(const std::string & controller_type) const
-{
-  return loader_->isClassAvailable(controller_type);
-}
-  
 std::vector<std::string> ControllerLoaderPluginlib::get_declared_classes() const
 {
   return loader_->getDeclaredClasses();
+}
+
+bool ControllerLoaderPluginlib::is_available(const std::string & controller_type) const
+{
+  return loader_->isClassAvailable(controller_type);
 }
 
 void ControllerLoaderPluginlib::reload()
@@ -58,15 +58,11 @@ void ControllerLoaderPluginlib::reload()
 }
 
 ControllerLoaderPluginlibNewComponents::ControllerLoaderPluginlibNewComponents()
-: ControllerLoaderInterface(),
-loader_(std::make_shared<pluginlib::ClassLoader<controller_interface::ControllerInterfaceNewComponents>>(
-  "controller_interface", "controller_interface::ControllerInterfaceNewComponents"))
+: ControllerLoaderInterface("controller_interface::ControllerInterfaceNewComponents"),
+loader_(
+  std::make_shared<pluginlib::ClassLoader<controller_interface::ControllerInterfaceNewComponents>>(
+    "controller_interface", "controller_interface::ControllerInterfaceNewComponents"))
 {
-}
-
-bool ControllerLoaderPluginlibNewComponents::is_available(const std::string & controller_type) const
-{
-  return loader_->isClassAvailable(controller_type);
 }
 
 // Only for the interface compatibility
@@ -85,14 +81,9 @@ ControllerLoaderPluginlibNewComponents::create_new_components(
   return loader_->createSharedInstance(controller_type);
 }
 
-
-
-
-ControllerLoaderPluginlibNewComponents::ControllerLoaderPluginlibNewComponents()
-: ControllerLoaderInterface(),
-loader_(std::make_shared<pluginlib::ClassLoader<controller_interface::ControllerInterfaceNewComponents>>(
-  "controller_interface", "controller_interface::ControllerInterfaceNewComponents"))
+std::vector<std::string> ControllerLoaderPluginlibNewComponents::get_declared_classes() const
 {
+  return loader_->getDeclaredClasses();
 }
 
 bool ControllerLoaderPluginlibNewComponents::is_available(const std::string & controller_type) const
@@ -100,21 +91,11 @@ bool ControllerLoaderPluginlibNewComponents::is_available(const std::string & co
   return loader_->isClassAvailable(controller_type);
 }
 
-// Only for the interface compatibility
-CONTROLLER_MANAGER_PUBLIC
-controller_interface::ControllerInterfaceSharedPtr
-ControllerLoaderPluginlibNewComponents::create(const std::string & /*controller_type*/)
+void ControllerLoaderPluginlibNewComponents::reload()
 {
-  return nullptr;
+  loader_ =
+  std::make_shared<pluginlib::ClassLoader<controller_interface::ControllerInterfaceNewComponents>>(
+    "controller_interface", "controller_interface::ControllerInterfaceNewComponents");
 }
-
-//TODO(anyone) new loader with components - rename to create
-controller_interface::ControllerInterfaceNewComponentsSharedPtr
-ControllerLoaderPluginlibNewComponents::create_new_components(
-  const std::string & controller_type)
-{
-  return loader_->createSharedInstance(controller_type);
-}
-
 
 }  // namespace controller_manager
