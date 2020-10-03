@@ -56,10 +56,12 @@ ament_target_dependencies(ros2_control_node
   rclcpp
 )
 
-install(TARGETS controller_manager ros2_control_manager ros2_control_node
-  RUNTIME DESTINATION bin
+install(TARGETS controller_manager ros2_control_manager
   LIBRARY DESTINATION lib
-  ARCHIVE DESTINATION lib
+)
+
+install(TARGETS ros2_control_node
+  RUNTIME DESTINATION bin
 )
 
 install(DIRECTORY include/

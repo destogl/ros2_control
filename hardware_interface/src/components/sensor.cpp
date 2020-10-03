@@ -35,7 +35,7 @@ return_type Sensor::configure(const ComponentInfo & joint_info)
   return return_type::OK;
 }
 
-std::vector<std::string> Sensor::get_state_interfaces()
+std::vector<std::string> Sensor::get_state_interfaces() const
 {
   return info_.state_interfaces;
 }
