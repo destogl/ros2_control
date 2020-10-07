@@ -36,12 +36,117 @@
 namespace
 {
 constexpr const auto kLoggerName = "ros2_control_resource_manager";
+
+//TODO: All should be move those constants in a shared header with the parser
+constexpr const auto kActuatorTypeName = "actuator";
+constexpr const auto kSensorTypeName = "sensor";
+constexpr const auto kSystemTypeName = "system";
 }  // namespace
 
 namespace hardware_interface
 {
 
+class ResourceStorage
+{
+  static constexpr const auto pkg_name = "hardware_interface";
+
+  static constexpr const auto joint_component_interface_name =
+    "hardware_interface::components::Joint";
+  static constexpr const auto sensor_component_interface_name =
+    "hardware_interface::components::Sensor";
+
+  static constexpr const auto actuator_interface_name =
+    "hardware_interface::ActuatorHardwareInterface";
+  static constexpr const auto sensor_interface_name =
+    "hardware_interface::SensorHardwareInterface";
+  static constexpr const auto system_interface_name =
+    "hardware_interface::SystemHardwareInterface";
+
+public:
+  ResourceStorage()
+  : joint_component_loader_(pkg_name, joint_component_interface_name),
+  sensor_component_loader_(pkg_name, sensor_component_interface_name),
+  actuator_loader_(pkg_name, actuator_interface_name),
+  sensor_loader_(pkg_name, sensor_interface_name),
+  system_loader_(pkg_name, system_interface_name)
+  {}
+
+  ~ResourceStorage() = default;
+
+  void initialize_joint_component(
+    const hardware_interface::components::ComponentInfo & component_info)
+  {
+    joint_components_.emplace_back(
+      std::unique_ptr<hardware_interface::components::Joint>(
+        joint_component_loader_.createUnmanagedInstance(component_info.class_type)));
+    joint_components_.back()->configure(component_info);
+  }
+
+  void initialize_sensor_component(
+    const hardware_interface::components::ComponentInfo & component_info)
+  {
+    sensor_components_.emplace_back(
+      std::unique_ptr<hardware_interface::components::Sensor>(
+        sensor_component_loader_.createUnmanagedInstance(component_info.class_type)));
+    sensor_components_.back()->configure(component_info);
+  }
+
+  template<class HardwareT, class HardwareInterfaceT>
+  void initialize_hardware(
+    const hardware_interface::HardwareInfo & hardware_info,
+    pluginlib::ClassLoader<HardwareInterfaceT> & loader,
+    std::vector<HardwareT> & container)
+  {
+    // hardware_class_type has to match class name in plugin xml description
+    // TODO(karsten1987) extract package from hardware_class_type
+    // e.g.: <package_vendor>/<system_type>
+    auto interface = std::unique_ptr<HardwareInterfaceT>(
+      loader.createUnmanagedInstance(hardware_info.hardware_class_type));
+    HardwareT actuator(std::move(interface));
+    container.emplace_back(std::move(actuator));
+    container.back().configure(hardware_info);
+  }
+
+  void initialize_actuator(const hardware_interface::HardwareInfo & hardware_info)
+  {
+    initialize_hardware<hardware_interface::ActuatorHardware,
+    hardware_interface::ActuatorHardwareInterface>(
+      hardware_info, actuator_loader_, actuators_);
+  }
+
+  void initialize_sensor(const hardware_interface::HardwareInfo & hardware_info)
+  {
+    initialize_hardware<hardware_interface::SensorHardware,
+    hardware_interface::SensorHardwareInterface>(
+      hardware_info, sensor_loader_, sensors_);
+  }
+
+  void initialize_system(const hardware_interface::HardwareInfo & hardware_info)
+  {
+    initialize_hardware<hardware_interface::SystemHardware,
+    hardware_interface::SystemHardwareInterface>(
+      hardware_info, system_loader_, systems_);
+  }
+
+  // components plugins
+  pluginlib::ClassLoader<hardware_interface::components::Joint> joint_component_loader_;
+  pluginlib::ClassLoader<hardware_interface::components::Sensor> sensor_component_loader_;
+
+  std::vector<std::unique_ptr<hardware_interface::components::Joint>> joint_components_;
+  std::vector<std::unique_ptr<hardware_interface::components::Sensor>> sensor_components_;
+
+  // hardware plugins
+  pluginlib::ClassLoader<hardware_interface::ActuatorHardwareInterface> actuator_loader_;
+  pluginlib::ClassLoader<hardware_interface::SensorHardwareInterface> sensor_loader_;
+  pluginlib::ClassLoader<hardware_interface::SystemHardwareInterface> system_loader_;
+
+  std::vector<hardware_interface::ActuatorHardware> actuators_;
+  std::vector<hardware_interface::SensorHardware> sensors_;
+  std::vector<hardware_interface::SystemHardware> systems_;
+};
+
 ResourceManager::ResourceManager()
+: resource_storage_(std::make_unique<ResourceStorage>())
 {
   actuator_loader_.reset(
     new pluginlib::ClassLoader<hardware_interface::ActuatorHardwareInterface>(
@@ -70,7 +175,7 @@ ResourceManager::load_and_configure_resources_from_urdf(std::string urdf_string)
     RCLCPP_INFO(
       rclcpp::get_logger(kLoggerName),
       "Loading hardware plugin: " + hardware_info.hardware_class_type);
-    if (!hardware_info.type.compare("system")) {
+    if (!hardware_info.type.compare(kSystemTypeName)) {
       // TODO(anyone): this here is really not nice...
       std::unique_ptr<hardware_interface::SystemHardwareInterface> sys_hw_if;
       sys_hw_if.reset(system_loader_->createUnmanagedInstance(hardware_info.hardware_class_type));

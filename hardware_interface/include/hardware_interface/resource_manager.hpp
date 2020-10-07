@@ -37,6 +37,8 @@ using hardware_interface::return_type;
 namespace hardware_interface
 {
 
+class ResourceStorage;
+
 class ResourceManager
 {
 public:
@@ -74,6 +76,8 @@ public:
   return_type write_all_resources();
 
 private:
+  std::unique_ptr<ResourceStorage> resource_storage_;
+
   std::vector<std::shared_ptr<hardware_interface::ActuatorHardware>> actuators_;
   std::vector<std::shared_ptr<hardware_interface::SensorHardware>> sensors_;
   std::vector<std::shared_ptr<hardware_interface::SystemHardware>> systems_;
