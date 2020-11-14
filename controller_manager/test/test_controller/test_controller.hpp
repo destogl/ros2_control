@@ -24,8 +24,8 @@
 namespace test_controller
 {
 
-constexpr char TEST_CONTROLLER_NAME[] = "test_controller_name";
-constexpr char TEST_CONTROLLER_TYPE[] = "test_controller";
+constexpr char TEST_CONTROLLER_NAME[] = "controller_manager/test_controller_name";
+constexpr char TEST_CONTROLLER_TYPE[] = "controller_manager/test_controller_type";
 class TestController : public controller_interface::ControllerInterface
 {
 public:
@@ -35,6 +35,18 @@ public:
   CONTROLLER_MANAGER_PUBLIC
   virtual
   ~TestController() = default;
+
+  controller_interface::InterfaceConfiguration command_interface_configuration() const override
+  {
+    return controller_interface::InterfaceConfiguration{
+      controller_interface::configuration_type::NONE};
+  }
+
+  controller_interface::InterfaceConfiguration state_interface_configuration() const override
+  {
+    return controller_interface::InterfaceConfiguration{
+      controller_interface::configuration_type::NONE};
+  }
 
   CONTROLLER_MANAGER_PUBLIC
   controller_interface::return_type

@@ -24,6 +24,7 @@
 
 #include "controller_manager/controller_spec.hpp"
 #include "controller_manager/visibility_control.h"
+#include "controller_manager_msgs/srv/list_controller_interfaces.hpp"
 #include "controller_manager_msgs/srv/list_controllers.hpp"
 #include "controller_manager_msgs/srv/list_controller_types.hpp"
 #include "controller_manager_msgs/srv/load_controller.hpp"
@@ -31,7 +32,7 @@
 #include "controller_manager_msgs/srv/switch_controller.hpp"
 #include "controller_manager_msgs/srv/unload_controller.hpp"
 
-#include "hardware_interface/robot_hardware.hpp"
+#include "hardware_interface/resource_manager.hpp"
 
 #include "pluginlib/class_loader.hpp"
 
@@ -44,14 +45,19 @@ namespace controller_manager
 class ControllerManager : public rclcpp::Node
 {
 public:
-  static constexpr bool WAIT_FOR_ALL_RESOURCES = false;
-  static constexpr double INFINITE_TIMEOUT = 0.0;
+  static constexpr bool kWaitForAllResources = false;
+  static constexpr double kInfiniteTimeout = 0.0;
 
   CONTROLLER_MANAGER_PUBLIC
   ControllerManager(
-    std::shared_ptr<hardware_interface::RobotHardware> hw,
+    std::unique_ptr<hardware_interface::ResourceManager> resource_manager,
     std::shared_ptr<rclcpp::Executor> executor,
-    const std::string & name = "controller_manager");
+    const std::string & manager_node_name = "controller_manager");
+
+  CONTROLLER_MANAGER_PUBLIC
+  ControllerManager(
+    std::shared_ptr<rclcpp::Executor> executor,
+    const std::string & manager_node_name = "controller_manager");
 
   CONTROLLER_MANAGER_PUBLIC
   virtual
@@ -104,14 +110,24 @@ public:
     const std::vector<std::string> & start_controllers,
     const std::vector<std::string> & stop_controllers,
     int strictness,
-    bool start_asap = WAIT_FOR_ALL_RESOURCES,
-    const rclcpp::Duration & timeout = rclcpp::Duration(INFINITE_TIMEOUT));
+    bool start_asap = kWaitForAllResources,
+    const rclcpp::Duration & timeout = rclcpp::Duration(kInfiniteTimeout));
 
   CONTROLLER_MANAGER_PUBLIC
   controller_interface::return_type
-  update();
+  update(bool update_resources = true);
+
+  /// Deterministic (real-time safe) callback group, e.g., update function.
+  /**
+   * Deterministic (real-time safe) callback group for the update function. Default behavior
+   * is read hardware, update controller and finally write new values to the hardware.
+   */
+  rclcpp::CallbackGroup::SharedPtr deterministic_callback_group_;
 
 protected:
+  CONTROLLER_MANAGER_PUBLIC
+  void init_services();
+
   CONTROLLER_MANAGER_PUBLIC
   controller_interface::ControllerInterfaceSharedPtr
   add_controller_impl(const ControllerSpec & controller);
@@ -127,6 +143,11 @@ protected:
 
   CONTROLLER_MANAGER_PUBLIC
   void start_controllers_asap();
+
+  CONTROLLER_MANAGER_PUBLIC
+  void list_controller_interfaces_srv_cb(
+    const std::shared_ptr<controller_manager_msgs::srv::ListControllerInterfaces::Request> request,
+    std::shared_ptr<controller_manager_msgs::srv::ListControllerInterfaces::Response> response);
 
   CONTROLLER_MANAGER_PUBLIC
   void list_controllers_srv_cb(
@@ -161,9 +182,17 @@ protected:
 private:
   std::vector<std::string> get_controller_names();
 
-  std::shared_ptr<hardware_interface::RobotHardware> hw_;
+  std::shared_ptr<hardware_interface::ResourceManager> resource_manager_;
   std::shared_ptr<rclcpp::Executor> executor_;
+
   std::shared_ptr<pluginlib::ClassLoader<controller_interface::ControllerInterface>> loader_;
+
+  /// Best effort (non real-time safe) callback group, e.g., service callbacks.
+  /**
+   * Best effort (non real-time safe) callback group for callbacks that can possibly break
+   * real-time requirements, for example, service callbacks.
+   */
+  rclcpp::CallbackGroup::SharedPtr best_effort_callback_group_;
 
   /**
    * @brief The RTControllerListWrapper class wraps a double-buffered list of controllers
@@ -241,6 +270,8 @@ private:
   /// mutex copied from ROS1 Control, protects service callbacks
   /// not needed if we're guaranteed that the callbacks don't come from multiple threads
   std::mutex services_lock_;
+  rclcpp::Service<controller_manager_msgs::srv::ListControllerInterfaces>::SharedPtr
+    list_controller_interfaces_service_;
   rclcpp::Service<controller_manager_msgs::srv::ListControllers>::SharedPtr
     list_controllers_service_;
   rclcpp::Service<controller_manager_msgs::srv::ListControllerTypes>::SharedPtr

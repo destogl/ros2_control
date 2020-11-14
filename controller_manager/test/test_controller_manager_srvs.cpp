@@ -31,7 +31,7 @@ using ::testing::Return;
 
 using namespace std::chrono_literals;
 
-class TestControllerManagerSrvs : public TestControllerManager
+class TestControllerManagerSrvs : public ControllerManagerFixture
 {
 public:
   TestControllerManagerSrvs()
@@ -40,13 +40,10 @@ public:
 
   void SetUp() override
   {
-    TestControllerManager::SetUp();
-    cm_ = std::make_shared<controller_manager::ControllerManager>(
-      robot_, executor_,
-      "test_controller_manager");
-    update_timer_ = cm_->create_wall_timer(
-      std::chrono::milliseconds(10),
-      std::bind(&controller_manager::ControllerManager::update, cm_.get()));
+    ControllerManagerFixture::SetUp();
+    std::function<controller_interface::return_type()> timer_cb =
+      std::bind(&controller_manager::ControllerManager::update, cm_.get(), true);
+    update_timer_ = cm_->create_wall_timer(std::chrono::milliseconds(10), timer_cb);
 
     executor_->add_node(cm_);
 
@@ -90,7 +87,6 @@ public:
   }
 
 protected:
-  std::shared_ptr<controller_manager::ControllerManager> cm_;
   rclcpp::TimerBase::SharedPtr update_timer_;
   std::future<void> executor_spin_future_;
 };
