@@ -69,9 +69,15 @@ The following list shows mandatory changes when porting existing hardware compon
      return CallbackReturn::ERROR;
    }
 
-1. Change last return of ``on_init`` to ``return CallbackReturn::SUCCESS;``;
-1. Remove all lines with ``status_ = ...`` or ``status::...``
-1. Rename ``start()`` to ``on_activate(const State & previous_state)`` and ``stop()`` to ``on_deactivate(const State & previous_state)``
-1. Change return type of ``on_activate`` and ``on_deactivate`` to ``CallbackReturn``
-1. Change last return of ``on_activate`` and ``on_deactivate`` to ``return CallbackReturn::SUCCESS;``
-1. If you have any ``return_type::ERROR`` in ``on_init``, ``on_activate``, or ``in_deactivate`` change to ``CallbackReturn::ERROR``
+
+1. Change last return of ``on_init`` to ``return CallbackReturn::SUCCESS;``
+
+2. Remove all lines with ``status_ = ...`` or ``status::...``
+
+3. Rename ``start()`` to ``on_activate(const State & previous_state)`` and ``stop()`` to ``on_deactivate(const State & previous_state)``
+
+4. Change return type of ``on_activate`` and ``on_deactivate`` to ``CallbackReturn``
+
+5. Change last return of ``on_activate`` and ``on_deactivate`` to ``return CallbackReturn::SUCCESS;``
+
+6. If you have any ``return_type::ERROR`` in ``on_init``, ``on_activate``, or ``in_deactivate`` change to ``CallbackReturn::ERROR``
