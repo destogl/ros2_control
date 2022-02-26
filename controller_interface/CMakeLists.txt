@@ -51,6 +51,11 @@ if(BUILD_TESTING)
   target_link_libraries(test_controller_with_options controller_interface)
   target_include_directories(test_controller_with_options PRIVATE include)
 
+  ament_add_gmock(test_chainable_controller_interface test/test_chainable_controller_interface.cpp)
+  target_link_libraries(test_chainable_controller_interface controller_interface)
+  target_include_directories(test_chainable_controller_interface PRIVATE include)
+  ament_target_dependencies(test_chainable_controller_interface hardware_interface)
+
   ament_add_gmock(
     test_semantic_component_interface
     test/test_semantic_component_interface.cpp

@@ -21,6 +21,7 @@
 
 #include "controller_interface/visibility_control.h"
 
+#include "hardware_interface/handle.hpp"
 #include "hardware_interface/loaned_command_interface.hpp"
 #include "hardware_interface/loaned_state_interface.hpp"
 
@@ -133,6 +134,56 @@ public:
       return node_->get_parameter(name).get_value<ParameterT>();
     }
   }
+
+  // Methods for chainable controller types with default values so we can put all controllers into
+  // one list in Controller Manager
+
+  /// Get information if a controller is chainable.
+  /**
+   * Get information if a controller is chainable.
+   *
+   * \returns true is controller is chainable and false if it is not. \default false if controller
+   * implements ControllerInterface.
+   */
+  CONTROLLER_INTERFACE_PUBLIC
+  virtual bool is_chainable() const { return false; }
+
+  /**
+   * Export interfaces for a chainable controller that can be used as command interface of other
+   * controllers.
+   *
+   * \returns list of command interfaces for preceding controllers. \default implementation in
+   * `ControllerInterface` returns empty list.
+   */
+  CONTROLLER_INTERFACE_PUBLIC
+  virtual std::vector<hardware_interface::CommandInterface> export_reference_interfaces()
+  {
+    return std::vector<hardware_interface::CommandInterface>();
+  }
+
+  /**
+   * Set chained mode of a chainable controller. This method triggers internal processes to switch
+   * a chainable controller to "chained" mode and vice-versa. Setting controller to "chained" mode
+   * usually involves disabling of subscribers and other external interfaces to avoid potential
+   * concurrency in input commands.
+   *
+   * \returns true if mode is switched successfully and false if not. \default implementation in
+   * `ControllerInterface` returns false for unchainable controllers.
+   */
+  CONTROLLER_INTERFACE_PUBLIC
+  virtual bool set_chained_mode(bool chained_mode) { return false; }
+
+  /// Get information if a controller is currently in chained mode.
+  /**
+   * Get information about controller if it is currently used in chained mode. In chained mode only
+   * internal interfaces are available and all subscribers are expected to be disabled. This
+   * prevents concurrent writing to controller's inputs from multiple sources.
+   *
+   * \returns true is controller is in chained mode and false if it is not. \default false if
+   * controller implements ControllerInterface.
+   */
+  CONTROLLER_INTERFACE_PUBLIC
+  virtual bool is_in_chained_mode() const { return false; }
 
 protected:
   std::vector<hardware_interface::LoanedCommandInterface> command_interfaces_;
