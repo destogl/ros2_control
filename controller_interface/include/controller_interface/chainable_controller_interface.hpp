@@ -62,7 +62,7 @@ protected:
    *
    * \returns list of CommandInterfaces that other controller can use as their outputs.
    */
-  virtual std::vector<hardware_interface::CommandInterface> do_export_reference_interfaces() = 0;
+  virtual std::vector<hardware_interface::CommandInterface> on_export_reference_interfaces() = 0;
 
   /// Virtual method that each chainable controller should implement to switch chained mode.
   /**
@@ -72,7 +72,10 @@ protected:
    *
    * \returns true if controller successfully switched between "chained" and "external" mode.
    */
-  virtual bool do_set_chained_mode(bool chained_mode) = 0;
+  virtual bool on_set_chained_mode(bool chained_mode) = 0;
+
+  /// Storage of values for reference interfaces
+  std::vector<double> reference_interfaces_;
 
 private:
   /// A flag marking is a chainable controller is currently preceded by another controller.

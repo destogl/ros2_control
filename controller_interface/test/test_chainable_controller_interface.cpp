@@ -58,7 +58,7 @@ TEST(TestableChainableControllerInterface, export_reference_interfaces)
   EXPECT_EQ(reference_interfaces[0].get_name(), TEST_CONTROLLER_NAME);
   EXPECT_EQ(reference_interfaces[0].get_interface_name(), "test_itf");
 
-  EXPECT_EQ(reference_interfaces[0].get_value(), controller.cmd_interface_value);
+  EXPECT_EQ(reference_interfaces[0].get_value(), INTERFACE_VALUE);
 
   rclcpp::shutdown();
 }
@@ -81,6 +81,8 @@ TEST(TestableChainableControllerInterface, setting_chained_mode)
   EXPECT_FALSE(controller.is_in_chained_mode());
 
   // Fail setting chained mode
+  EXPECT_EQ(reference_interfaces[0].get_value(), INTERFACE_VALUE);
+
   EXPECT_FALSE(controller.set_chained_mode(true));
   EXPECT_FALSE(controller.is_in_chained_mode());
 
@@ -91,8 +93,23 @@ TEST(TestableChainableControllerInterface, setting_chained_mode)
   reference_interfaces[0].set_value(0.0);
 
   EXPECT_TRUE(controller.set_chained_mode(true));
+
+  controller.configure();
+
+  // Can not change chained mode until not in "UNCONFIGURED" state
+  EXPECT_FALSE(controller.set_chained_mode(false));
   EXPECT_TRUE(controller.is_in_chained_mode());
 
+  controller.get_node()->activate();
+  EXPECT_FALSE(controller.set_chained_mode(false));
+  EXPECT_TRUE(controller.is_in_chained_mode());
+
+  controller.get_node()->deactivate();
+  EXPECT_FALSE(controller.set_chained_mode(false));
+  EXPECT_TRUE(controller.is_in_chained_mode());
+
+  // Can change 'chained' mode only in "UNCONFIGURED" state
+  controller.get_node()->cleanup();
   EXPECT_TRUE(controller.set_chained_mode(false));
   EXPECT_FALSE(controller.is_in_chained_mode());
 

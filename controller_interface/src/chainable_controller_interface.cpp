@@ -16,6 +16,9 @@
 
 #include <vector>
 
+#include "hardware_interface/types/lifecycle_state_names.hpp"
+#include "lifecycle_msgs/msg/state.hpp"
+
 namespace controller_interface
 {
 bool ChainableControllerInterface::is_chainable() const { return true; }
@@ -23,16 +26,29 @@ bool ChainableControllerInterface::is_chainable() const { return true; }
 std::vector<hardware_interface::CommandInterface>
 ChainableControllerInterface::export_reference_interfaces()
 {
-  return do_export_reference_interfaces();
+  return on_export_reference_interfaces();
 }
 
 bool ChainableControllerInterface::set_chained_mode(bool chained_mode)
 {
-  bool result = do_set_chained_mode(chained_mode);
+  bool result = false;
 
-  if (result)
+  if (get_state().id() == lifecycle_msgs::msg::State::PRIMARY_STATE_UNCONFIGURED)
   {
-    in_chained_mode_ = chained_mode;
+    result = on_set_chained_mode(chained_mode);
+
+    if (result)
+    {
+      in_chained_mode_ = chained_mode;
+    }
+  }
+  else
+  {
+    RCLCPP_ERROR(
+      get_node()->get_logger(),
+      "Can not change controller's chained mode because it is no in '%s' state. "
+      "Current state is '%s'.",
+      hardware_interface::lifecycle_state_names::UNCONFIGURED, get_state().label().c_str());
   }
 
   return result;

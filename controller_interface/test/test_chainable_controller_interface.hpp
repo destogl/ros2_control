@@ -24,11 +24,18 @@
 using CallbackReturn = rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn;
 
 constexpr char TEST_CONTROLLER_NAME[] = "testable_chainable_controller";
+constexpr double INTERFACE_VALUE = 1989.0;
 
 class TestableChainableControllerInterface
 : public controller_interface::ChainableControllerInterface
 {
 public:
+  TestableChainableControllerInterface()
+  {
+    reference_interfaces_.reserve(1);
+    reference_interfaces_.push_back(INTERFACE_VALUE);
+  }
+
   CallbackReturn on_init() override { return CallbackReturn::SUCCESS; }
 
   controller_interface::InterfaceConfiguration command_interface_configuration() const override
@@ -50,19 +57,19 @@ public:
   }
 
   // Implementation of ChainableController virtual methods
-  std::vector<hardware_interface::CommandInterface> do_export_reference_interfaces() override
+  std::vector<hardware_interface::CommandInterface> on_export_reference_interfaces() override
   {
     std::vector<hardware_interface::CommandInterface> command_interfaces;
 
-    command_interfaces.push_back(
-      hardware_interface::CommandInterface(node_->get_name(), "test_itf", &cmd_interface_value));
+    command_interfaces.push_back(hardware_interface::CommandInterface(
+      get_node()->get_name(), "test_itf", &reference_interfaces_[0]));
 
     return command_interfaces;
   }
 
-  bool do_set_chained_mode(bool chained_mode) override
+  bool on_set_chained_mode(bool /*chained_mode*/) override
   {
-    if (cmd_interface_value == 0.0)
+    if (reference_interfaces_[0] == 0.0)
     {
       return true;
     }
@@ -71,9 +78,6 @@ public:
       return false;
     }
   }
-
-public:
-  double cmd_interface_value = 1989.0;
 };
 
 #endif  // TEST_CHAINABLE_CONTROLLER_INTERFACE_HPP_
