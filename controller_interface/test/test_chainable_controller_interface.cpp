@@ -93,19 +93,19 @@ TEST(TestableChainableControllerInterface, setting_chained_mode)
   reference_interfaces[0].set_value(0.0);
 
   EXPECT_TRUE(controller.set_chained_mode(true));
+  EXPECT_TRUE(controller.is_in_chained_mode());
 
   controller.configure();
-
-  // Can not change chained mode until not in "UNCONFIGURED" state
-  EXPECT_FALSE(controller.set_chained_mode(false));
-  EXPECT_TRUE(controller.is_in_chained_mode());
+  EXPECT_TRUE(controller.set_chained_mode(false));
+  EXPECT_FALSE(controller.is_in_chained_mode());
 
   controller.get_node()->activate();
-  EXPECT_FALSE(controller.set_chained_mode(false));
-  EXPECT_TRUE(controller.is_in_chained_mode());
+  // Can not change chained mode until in "ACTIVE" state
+  EXPECT_FALSE(controller.set_chained_mode(true));
+  EXPECT_FALSE(controller.is_in_chained_mode());
 
   controller.get_node()->deactivate();
-  EXPECT_FALSE(controller.set_chained_mode(false));
+  EXPECT_TRUE(controller.set_chained_mode(true));
   EXPECT_TRUE(controller.is_in_chained_mode());
 
   // Can change 'chained' mode only in "UNCONFIGURED" state
