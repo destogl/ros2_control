@@ -56,4 +56,6 @@ bool ChainableControllerInterface::set_chained_mode(bool chained_mode)
 
 bool ChainableControllerInterface::is_in_chained_mode() const { return in_chained_mode_; }
 
+bool ChainableControllerInterface::on_set_chained_mode(bool /*chained_mode*/) { return true; }
+
 }  // namespace controller_interface

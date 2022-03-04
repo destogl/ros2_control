@@ -72,7 +72,7 @@ protected:
    *
    * \returns true if controller successfully switched between "chained" and "external" mode.
    */
-  virtual bool on_set_chained_mode(bool chained_mode) = 0;
+  virtual bool on_set_chained_mode(bool chained_mode);
 
   /// Storage of values for reference interfaces
   std::vector<double> reference_interfaces_;
