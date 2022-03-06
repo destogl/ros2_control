@@ -171,7 +171,7 @@ public:
    * `ControllerInterface` returns false for unchainable controllers.
    */
   CONTROLLER_INTERFACE_PUBLIC
-  virtual bool set_chained_mode(bool chained_mode) { return false; }
+  virtual bool set_chained_mode(bool /*chained_mode*/) { return false; }
 
   /// Get information if a controller is currently in chained mode.
   /**
