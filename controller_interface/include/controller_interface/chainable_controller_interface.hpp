@@ -79,7 +79,7 @@ protected:
 
 private:
   /// A flag marking is a chainable controller is currently preceded by another controller.
-  bool in_chained_mode_;
+  bool in_chained_mode_ = false;
 };
 
 }  // namespace controller_interface
