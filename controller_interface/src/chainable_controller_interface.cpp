@@ -21,6 +21,8 @@
 
 namespace controller_interface
 {
+ChainableControllerInterface::ChainableControllerInterface() : ControllerInterface() {}
+
 bool ChainableControllerInterface::is_chainable() const { return true; }
 
 return_type ChainableControllerInterface::update(

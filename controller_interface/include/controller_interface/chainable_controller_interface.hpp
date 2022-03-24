@@ -35,7 +35,7 @@ class ChainableControllerInterface : public ControllerInterface
 {
 public:
   CONTROLLER_INTERFACE_PUBLIC
-  ChainableControllerInterface() = default;
+  ChainableControllerInterface();
 
   CONTROLLER_INTERFACE_PUBLIC
   virtual ~ChainableControllerInterface() = default;
