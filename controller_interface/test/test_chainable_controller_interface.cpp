@@ -115,3 +115,40 @@ TEST(TestableChainableControllerInterface, setting_chained_mode)
 
   rclcpp::shutdown();
 }
+
+TEST(TestableChainableControllerInterface, reference_interfaces_storage_not_correct_size)
+{
+  char const * const argv[] = {""};
+  int argc = arrlen(argv);
+  rclcpp::init(argc, argv);
+
+  TestableChainableControllerInterface controller;
+
+  // initialize, create node
+  ASSERT_EQ(controller.init(TEST_CONTROLLER_NAME), controller_interface::return_type::OK);
+  ASSERT_NO_THROW(controller.get_node());
+
+  // expect empty return because storage is not resized
+  controller.reference_interfaces_.clear();
+  auto reference_interfaces = controller.export_reference_interfaces();
+  ASSERT_TRUE(reference_interfaces.empty());
+}
+
+TEST(TestableChainableControllerInterface, reference_interfaces_prefix_is_not_node_name)
+{
+  char const * const argv[] = {""};
+  int argc = arrlen(argv);
+  rclcpp::init(argc, argv);
+
+  TestableChainableControllerInterface controller;
+
+  // initialize, create node
+  ASSERT_EQ(controller.init(TEST_CONTROLLER_NAME), controller_interface::return_type::OK);
+  ASSERT_NO_THROW(controller.get_node());
+
+  controller.set_name_prefix_of_reference_interfaces("some_not_correct_interface_prefix");
+
+  // expect empty return because interface prefix is not equal to the node name
+  auto reference_interfaces = controller.export_reference_interfaces();
+  ASSERT_TRUE(reference_interfaces.empty());
+}

@@ -15,7 +15,10 @@
 #ifndef TEST_CHAINABLE_CONTROLLER_INTERFACE_HPP_
 #define TEST_CHAINABLE_CONTROLLER_INTERFACE_HPP_
 
+#include <string>
 #include <vector>
+
+#include "gmock/gmock.h"
 
 #include "controller_interface/chainable_controller_interface.hpp"
 #include "hardware_interface/handle.hpp"
@@ -30,13 +33,21 @@ class TestableChainableControllerInterface
 : public controller_interface::ChainableControllerInterface
 {
 public:
+  FRIEND_TEST(TestableChainableControllerInterface, reference_interfaces_storage_not_correct_size);
+
   TestableChainableControllerInterface()
   {
     reference_interfaces_.reserve(1);
     reference_interfaces_.push_back(INTERFACE_VALUE);
   }
 
-  CallbackReturn on_init() override { return CallbackReturn::SUCCESS; }
+  CallbackReturn on_init() override
+  {
+    // set default value
+    name_prefix_of_reference_interfaces = get_node()->get_name();
+
+    return CallbackReturn::SUCCESS;
+  }
 
   controller_interface::InterfaceConfiguration command_interface_configuration() const override
   {
@@ -78,6 +89,13 @@ public:
       return false;
     }
   }
+
+  void set_name_prefix_of_reference_interfaces(const std::string & prefix)
+  {
+    name_prefix_of_reference_interfaces = prefix;
+  }
+
+  std::string name_prefix_of_reference_interfaces;
 };
 
 #endif  // TEST_CHAINABLE_CONTROLLER_INTERFACE_HPP_
