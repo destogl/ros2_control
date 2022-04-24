@@ -24,8 +24,6 @@
 #include "hardware_interface/handle.hpp"
 #include "rclcpp_lifecycle/node_interfaces/lifecycle_node_interface.hpp"
 
-using CallbackReturn = rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn;
-
 constexpr char TEST_CONTROLLER_NAME[] = "testable_chainable_controller";
 constexpr double INTERFACE_VALUE = 1989.0;
 
@@ -33,7 +31,7 @@ class TestableChainableControllerInterface
 : public controller_interface::ChainableControllerInterface
 {
 public:
-  FRIEND_TEST(TestableChainableControllerInterface, reference_interfaces_storage_not_correct_size);
+  FRIEND_TEST(ChainableControllerInterfaceTest, reference_interfaces_storage_not_correct_size);
 
   TestableChainableControllerInterface()
   {
@@ -41,12 +39,12 @@ public:
     reference_interfaces_.push_back(INTERFACE_VALUE);
   }
 
-  CallbackReturn on_init() override
+  controller_interface::CallbackReturn on_init() override
   {
     // set default value
     name_prefix_of_reference_interfaces = get_node()->get_name();
 
-    return CallbackReturn::SUCCESS;
+    return controller_interface::CallbackReturn::SUCCESS;
   }
 
   controller_interface::InterfaceConfiguration command_interface_configuration() const override
@@ -73,7 +71,7 @@ public:
     std::vector<hardware_interface::CommandInterface> command_interfaces;
 
     command_interfaces.push_back(hardware_interface::CommandInterface(
-      get_node()->get_name(), "test_itf", &reference_interfaces_[0]));
+      name_prefix_of_reference_interfaces, "test_itf", &reference_interfaces_[0]));
 
     return command_interfaces;
   }
@@ -96,6 +94,14 @@ public:
   }
 
   std::string name_prefix_of_reference_interfaces;
+};
+
+class ChainableControllerInterfaceTest : public ::testing::Test
+{
+public:
+  static void SetUpTestCase() { rclcpp::init(0, nullptr); }
+
+  static void TearDownTestCase() { rclcpp::shutdown(); }
 };
 
 #endif  // TEST_CHAINABLE_CONTROLLER_INTERFACE_HPP_

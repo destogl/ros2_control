@@ -70,6 +70,8 @@ protected:
    * mode. In "chained" mode all external interfaces like subscriber and service servers are
    * disabled to avoid potential concurrency in input commands.
    *
+   * \param[in] flag marking a switch to or from chained mode.
+   *
    * \returns true if controller successfully switched between "chained" and "external" mode.
    */
   virtual bool on_set_chained_mode(bool chained_mode);

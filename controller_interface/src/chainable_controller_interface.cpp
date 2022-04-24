@@ -38,7 +38,7 @@ ChainableControllerInterface::export_reference_interfaces()
       "The internal storage for reference values 'reference_interfaces_' variable has size '%zu', "
       "but it is expected to have the size '%zu' equal to the number of exported reference "
       "interfaces. No reference interface will be exported. Please correct and recompile "
-      "the controller '%s' and try again.",
+      "the controller with name '%s' and try again.",
       reference_interfaces_.size(), reference_interfaces.size(), get_node()->get_name());
     reference_interfaces.clear();
   }
@@ -53,7 +53,7 @@ ChainableControllerInterface::export_reference_interfaces()
         "The name of the interface '%s' does not begin with the controller's name. This is "
         "mandatory "
         " for reference interfaces. No reference interface will be exported. Please correct and "
-        "recompile the controller '%s' and try again.",
+        "recompile the controller with name '%s' and try again.",
         interface.get_full_name().c_str(), get_node()->get_name());
       reference_interfaces.clear();
       break;
