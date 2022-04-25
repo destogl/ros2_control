@@ -41,6 +41,9 @@ public:
   virtual ~ChainableControllerInterface() = default;
 
   CONTROLLER_INTERFACE_PUBLIC
+  return_type update(const rclcpp::Time & time, const rclcpp::Duration & period) final;
+
+  CONTROLLER_INTERFACE_PUBLIC
   bool is_chainable() const final;
 
   CONTROLLER_INTERFACE_PUBLIC
@@ -75,6 +78,29 @@ protected:
    * \returns true if controller successfully switched between "chained" and "external" mode.
    */
   virtual bool on_set_chained_mode(bool chained_mode);
+
+  /// Update reference from input topics when not in chained mode.
+  /**
+   * Each chainable controller implements this method to update reference from subscribers when not
+   * in chained mode.
+   *
+   * \returns return_type::OK if update is successfully, otherwise return_type::ERROR.
+   */
+  virtual return_type update_reference_from_subscribers() = 0;
+
+  /// Execute calculations of the controller and update command interfaces.
+  /**
+   * Update method for chainable controllers.
+   * In this method is valid to assume that \reference_interfaces_ hold the values for calculation
+   * of the commands in the current control step.
+   * This means that this method is called after \update_reference_from_subscribers if controller is
+   * not in chained mode.
+   *
+   * \returns return_type::OK if calculation and writing of interface is successfully, otherwise
+   * return_type::ERROR.
+   */
+  virtual return_type update_and_write_commands(
+    const rclcpp::Time & time, const rclcpp::Duration & period) = 0;
 
   /// Storage of values for reference interfaces
   std::vector<double> reference_interfaces_;

@@ -21,6 +21,25 @@
 
 namespace controller_interface
 {
+return_type ChainableControllerInterface::update(
+  const rclcpp::Time & time, const rclcpp::Duration & period)
+{
+  return_type ret = return_type::ERROR;
+
+  if (!is_in_chained_mode())
+  {
+    ret = update_reference_from_subscribers();
+    if (ret != return_type::OK)
+    {
+      return ret;
+    }
+  }
+
+  ret = update_and_write_commands(time, period);
+
+  return ret;
+}
+
 bool ChainableControllerInterface::is_chainable() const { return true; }
 
 std::vector<hardware_interface::CommandInterface>

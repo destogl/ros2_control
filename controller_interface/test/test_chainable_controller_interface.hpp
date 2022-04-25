@@ -26,12 +26,16 @@
 
 constexpr char TEST_CONTROLLER_NAME[] = "testable_chainable_controller";
 constexpr double INTERFACE_VALUE = 1989.0;
+constexpr double INTERFACE_VALUE_SUBSCRIBER_ERROR = 12345.0;
+constexpr double INTERFACE_VALUE_UPDATE_ERROR = 67890.0;
+constexpr double INTERFACE_VALUE_INITIAL_REF = 1984.0;
 
 class TestableChainableControllerInterface
 : public controller_interface::ChainableControllerInterface
 {
 public:
   FRIEND_TEST(ChainableControllerInterfaceTest, reference_interfaces_storage_not_correct_size);
+  FRIEND_TEST(ChainableControllerInterfaceTest, test_update_logic);
 
   TestableChainableControllerInterface()
   {
@@ -42,7 +46,7 @@ public:
   controller_interface::CallbackReturn on_init() override
   {
     // set default value
-    name_prefix_of_reference_interfaces = get_node()->get_name();
+    name_prefix_of_reference_interfaces_ = get_node()->get_name();
 
     return controller_interface::CallbackReturn::SUCCESS;
   }
@@ -59,19 +63,13 @@ public:
       controller_interface::interface_configuration_type::NONE};
   }
 
-  controller_interface::return_type update(
-    const rclcpp::Time & /*time*/, const rclcpp::Duration & /*period*/) override
-  {
-    return controller_interface::return_type::OK;
-  }
-
   // Implementation of ChainableController virtual methods
   std::vector<hardware_interface::CommandInterface> on_export_reference_interfaces() override
   {
     std::vector<hardware_interface::CommandInterface> command_interfaces;
 
     command_interfaces.push_back(hardware_interface::CommandInterface(
-      name_prefix_of_reference_interfaces, "test_itf", &reference_interfaces_[0]));
+      name_prefix_of_reference_interfaces_, "test_itf", &reference_interfaces_[0]));
 
     return command_interfaces;
   }
@@ -88,12 +86,42 @@ public:
     }
   }
 
-  void set_name_prefix_of_reference_interfaces(const std::string & prefix)
+  controller_interface::return_type update_reference_from_subscribers() override
   {
-    name_prefix_of_reference_interfaces = prefix;
+    if (reference_interface_value_ == INTERFACE_VALUE_SUBSCRIBER_ERROR)
+    {
+      return controller_interface::return_type::ERROR;
+    }
+
+    reference_interfaces_[0] = reference_interface_value_;
+    return controller_interface::return_type::OK;
   }
 
-  std::string name_prefix_of_reference_interfaces;
+  controller_interface::return_type update_and_write_commands(
+    const rclcpp::Time & /*time*/, const rclcpp::Duration & /*period*/) override
+  {
+    if (reference_interfaces_[0] == INTERFACE_VALUE_UPDATE_ERROR)
+    {
+      return controller_interface::return_type::ERROR;
+    }
+
+    reference_interfaces_[0] -= 1;
+
+    return controller_interface::return_type::OK;
+  }
+
+  void set_name_prefix_of_reference_interfaces(const std::string & prefix)
+  {
+    name_prefix_of_reference_interfaces_ = prefix;
+  }
+
+  void set_new_reference_interface_value(const double ref_itf_value)
+  {
+    reference_interface_value_ = ref_itf_value;
+  }
+
+  std::string name_prefix_of_reference_interfaces_;
+  double reference_interface_value_ = INTERFACE_VALUE_INITIAL_REF;
 };
 
 class ChainableControllerInterfaceTest : public ::testing::Test
