@@ -21,6 +21,8 @@
 
 namespace controller_interface
 {
+bool ChainableControllerInterface::is_chainable() const { return true; }
+
 return_type ChainableControllerInterface::update(
   const rclcpp::Time & time, const rclcpp::Duration & period)
 {
@@ -39,8 +41,6 @@ return_type ChainableControllerInterface::update(
 
   return ret;
 }
-
-bool ChainableControllerInterface::is_chainable() const { return true; }
 
 std::vector<hardware_interface::CommandInterface>
 ChainableControllerInterface::export_reference_interfaces()
