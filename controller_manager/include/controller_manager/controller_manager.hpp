@@ -23,6 +23,7 @@
 #include <vector>
 
 #include "controller_interface/controller_interface.hpp"
+#include "controller_interface/chainable_controller_interface.hpp"
 
 #include "controller_manager/controller_spec.hpp"
 #include "controller_manager/visibility_control.h"
@@ -51,9 +52,47 @@
 #include "rclcpp/node_interfaces/node_parameters_interface.hpp"
 #include "rclcpp/parameter.hpp"
 
+namespace
+{  // utility
+
+template<typename CtrlType>
+inline bool is_controller_inactive(const CtrlType & controller)
+{
+  return controller.get_state().id() == lifecycle_msgs::msg::State::PRIMARY_STATE_INACTIVE;
+}
+
+template<typename CtrlType>
+inline bool is_controller_inactive(
+  const std::shared_ptr<CtrlType> & controller)
+{
+  return is_controller_inactive(*controller);
+}
+
+template<typename CtrlType>
+inline bool is_controller_active(const CtrlType & controller)
+{
+  return controller.get_state().id() == lifecycle_msgs::msg::State::PRIMARY_STATE_ACTIVE;
+}
+
+template<typename CtrlType>
+inline bool is_controller_active(
+  const std::shared_ptr<CtrlType> & controller)
+{
+  return is_controller_active(*controller);
+}
+
+template<typename CtrlType>
+bool controller_name_compare(const controller_manager::ControllerSpec<CtrlType> & a, const std::string & name)
+{
+  return a.info.name == name;
+}
+
+}  // namespace
+
 namespace controller_manager
 {
-using ControllersListIterator = std::vector<controller_manager::ControllerSpec>::const_iterator;
+using ControllersListIterator = std::vector<controller_manager::ControllerSpec<controller_interface::ControllerInterfaceSharedPtr>>::const_iterator;
+using ChainedControllersListIterator = std::vector<controller_manager::ControllerSpec<controller_interface::ChainableControllerInterfaceSharedPtr>>::const_iterator;
 
 class ControllerManager : public rclcpp::Node
 {
@@ -98,7 +137,10 @@ public:
   controller_interface::return_type unload_controller(const std::string & controller_name);
 
   CONTROLLER_MANAGER_PUBLIC
-  std::vector<ControllerSpec> get_loaded_controllers() const;
+  std::vector<ControllerSpec<controller_interface::ControllerInterfaceSharedPtr>> get_loaded_controllers() const;
+
+//   CONTROLLER_MANAGER_PUBLIC
+//   std::vector<ControllerSpec<controller_interface::ChainableControllerInterfaceSharedPtr>> get_chained_loaded_controllers() const;
 
   template <
     typename T, typename std::enable_if<
@@ -108,12 +150,27 @@ public:
     std::shared_ptr<T> controller, const std::string & controller_name,
     const std::string & controller_type)
   {
-    ControllerSpec controller_spec;
+    ControllerSpec<controller_interface::ControllerInterfaceSharedPtr> controller_spec;
     controller_spec.c = controller;
     controller_spec.info.name = controller_name;
     controller_spec.info.type = controller_type;
     return add_controller_impl(controller_spec);
   }
+
+//   template <
+//     typename T, typename std::enable_if<
+//                   std::is_convertible<T *, controller_interface::ChainedControllerInterface *>::value,
+//                   T>::type * = nullptr>
+//   controller_interface::ChainableControllerInterfaceSharedPtr add_controller(
+//     std::shared_ptr<T> controller, const std::string & controller_name,
+//     const std::string & controller_type)
+//   {
+//     ControllerSpec<controller_interface::ChainableControllerInterfaceSharedPtr> controller_spec;
+//     controller_spec.c = controller;
+//     controller_spec.info.name = controller_name;
+//     controller_spec.info.type = controller_type;
+//     return add_controller_impl(controller_spec);
+//   }
 
   /// configure_controller Configure controller by name calling their "configure" method.
   /**
@@ -167,7 +224,11 @@ protected:
 
   CONTROLLER_MANAGER_PUBLIC
   controller_interface::ControllerInterfaceSharedPtr add_controller_impl(
-    const ControllerSpec & controller);
+    const ControllerSpec<controller_interface::ControllerInterfaceSharedPtr> & controller);
+
+//   CONTROLLER_MANAGER_PUBLIC
+//   controller_interface::ChainableControllerInterfaceSharedPtr add_controller_impl(
+//     const ControllerSpec<controller_interface::ChainableControllerInterfaceSharedPtr> & controller);
 
   CONTROLLER_MANAGER_PUBLIC
   void manage_switch();
@@ -262,6 +323,7 @@ private:
   std::shared_ptr<rclcpp::Executor> executor_;
 
   std::shared_ptr<pluginlib::ClassLoader<controller_interface::ControllerInterface>> loader_;
+//   std::shared_ptr<pluginlib::ClassLoader<controller_interface::ChainableControllerInterface>> chainable_loader_;
 
   /// Best effort (non real-time safe) callback group, e.g., service callbacks.
   /**
@@ -281,6 +343,7 @@ private:
    * The updated state changes on the switch_updated_list()
    * The rt usage state changes on the update_and_get_used_by_rt_list()
    */
+  template <typename CtrlType>
   class RTControllerListWrapper
   {
     // *INDENT-OFF*
@@ -292,7 +355,7 @@ private:
      * updated list while it's being used
      * \return reference to the updated list
      */
-    std::vector<ControllerSpec> & update_and_get_used_by_rt_list();
+    std::vector<ControllerSpec<CtrlType>> & update_and_get_used_by_rt_list();
 
     /**
      * get_unused_list Waits until the "outdated" and "unused by rt"
@@ -301,7 +364,7 @@ private:
      * is called, at this point the RT thread may start using it at any time
      * \param[in] guard Guard needed to make sure the caller is the only one accessing the unused by rt list
      */
-    std::vector<ControllerSpec> & get_unused_list(
+    std::vector<ControllerSpec<CtrlType>> & get_unused_list(
       const std::lock_guard<std::recursive_mutex> & guard);
 
     /// get_updated_list Returns a const reference to the most updated list.
@@ -309,7 +372,7 @@ private:
      * \warning May or may not being used by the realtime thread, read-only reference for safety
      * \param[in] guard Guard needed to make sure the caller is the only one accessing the unused by rt list
      */
-    const std::vector<ControllerSpec> & get_updated_list(
+    const std::vector<ControllerSpec<CtrlType>> & get_updated_list(
       const std::lock_guard<std::recursive_mutex> & guard) const;
 
     /**
@@ -335,14 +398,15 @@ private:
     void wait_until_rt_not_using(
       int index, std::chrono::microseconds sleep_delay = std::chrono::microseconds(200)) const;
 
-    std::vector<ControllerSpec> controllers_lists_[2];
+    std::vector<ControllerSpec<CtrlType>> controllers_lists_[2];
     /// The index of the controller list with the most updated information
     int updated_controllers_index_ = 0;
     /// The index of the controllers list being used in the real-time thread.
     int used_by_realtime_controllers_index_ = -1;
   };
 
-  RTControllerListWrapper rt_controllers_wrapper_;
+  RTControllerListWrapper<controller_interface::ControllerInterfaceSharedPtr> rt_controllers_wrapper_;
+  RTControllerListWrapper<controller_interface::ChainableControllerInterfaceSharedPtr> rt_chainable_controllers_wrapper_;
   /// mutex copied from ROS1 Control, protects service callbacks
   /// not needed if we're guaranteed that the callbacks don't come from multiple threads
   std::mutex services_lock_;

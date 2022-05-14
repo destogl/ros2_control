@@ -45,33 +45,6 @@ static const rmw_qos_profile_t rmw_qos_profile_services_hist_keep_all = {
   RMW_QOS_LIVELINESS_LEASE_DURATION_DEFAULT,
   false};
 
-inline bool is_controller_inactive(const controller_interface::ControllerInterface & controller)
-{
-  return controller.get_state().id() == lifecycle_msgs::msg::State::PRIMARY_STATE_INACTIVE;
-}
-
-inline bool is_controller_inactive(
-  const controller_interface::ControllerInterfaceSharedPtr & controller)
-{
-  return is_controller_inactive(*controller);
-}
-
-inline bool is_controller_active(const controller_interface::ControllerInterface & controller)
-{
-  return controller.get_state().id() == lifecycle_msgs::msg::State::PRIMARY_STATE_ACTIVE;
-}
-
-inline bool is_controller_active(
-  const controller_interface::ControllerInterfaceSharedPtr & controller)
-{
-  return is_controller_active(*controller);
-}
-
-bool controller_name_compare(const controller_manager::ControllerSpec & a, const std::string & name)
-{
-  return a.info.name == name;
-}
-
 /// Checks is a command interface belongs to a controller based on its prefix.
 /**
  * A command interface can be provided by an controller in which case is called "reference"
@@ -83,9 +56,10 @@ bool controller_name_compare(const controller_manager::ControllerSpec & a, const
  * \param[out] interface_controller_name name of the controller interface belongs to.
  * \return true if interface has a controller name as prefix, false otherwise.
  */
+// TODO(chainalbe_process): Is this correct type here?
 bool command_interface_is_reference_interface_of_controller(
   const std::string interface_name,
-  const std::vector<controller_manager::ControllerSpec> & controllers,
+  const std::vector<controller_manager::ControllerSpec<controller_interface::ChainableControllerInterfaceSharedPtr>> & controllers,
   controller_manager::ControllersListIterator & following_controller_it)
 {
   auto split_pos = interface_name.find_first_of('/');
@@ -104,7 +78,7 @@ bool command_interface_is_reference_interface_of_controller(
   auto interface_prefix = interface_name.substr(0, split_pos);
   following_controller_it = std::find_if(
     controllers.begin(), controllers.end(),
-    std::bind(controller_name_compare, std::placeholders::_1, interface_prefix));
+    std::bind(controller_name_compare<controller_interface::ChainableControllerInterfaceSharedPtr>, std::placeholders::_1, interface_prefix));
 
   RCLCPP_DEBUG(
     rclcpp::get_logger("ControllerManager::utils"),
@@ -295,7 +269,7 @@ controller_interface::ControllerInterfaceSharedPtr ControllerManager::load_contr
   RCLCPP_DEBUG(get_logger(), "Loader for controller '%s' found.", controller_name.c_str());
 
   auto controller = loader_->createSharedInstance(controller_type);
-  ControllerSpec controller_spec;
+  ControllerSpec<controller_interface::ControllerInterfaceSharedPtr> controller_spec;
   controller_spec.c = controller;
   controller_spec.info.name = controller_name;
   controller_spec.info.type = controller_type;
@@ -331,16 +305,18 @@ controller_interface::ControllerInterfaceSharedPtr ControllerManager::load_contr
 controller_interface::return_type ControllerManager::unload_controller(
   const std::string & controller_name)
 {
+  using CtrlType = controller_interface::ControllerInterfaceSharedPtr;
+
   std::lock_guard<std::recursive_mutex> guard(rt_controllers_wrapper_.controllers_lock_);
-  std::vector<ControllerSpec> & to = rt_controllers_wrapper_.get_unused_list(guard);
-  const std::vector<ControllerSpec> & from = rt_controllers_wrapper_.get_updated_list(guard);
+  std::vector<ControllerSpec<CtrlType>> & to = rt_controllers_wrapper_.get_unused_list(guard);
+  const std::vector<ControllerSpec<CtrlType>> & from = rt_controllers_wrapper_.get_updated_list(guard);
 
   // Transfers the active controllers over, skipping the one to be removed and the active ones.
   to = from;
 
   auto found_it = std::find_if(
     to.begin(), to.end(),
-    std::bind(controller_name_compare, std::placeholders::_1, controller_name));
+    std::bind(controller_name_compare<controller_interface::ControllerInterfaceSharedPtr>, std::placeholders::_1, controller_name));
   if (found_it == to.end())
   {
     // Fails if we could not remove the controllers
@@ -373,7 +349,7 @@ controller_interface::return_type ControllerManager::unload_controller(
   // Destroys the old controllers list when the realtime thread is finished with it.
   RCLCPP_DEBUG(get_logger(), "Realtime switches over to new controller list");
   rt_controllers_wrapper_.switch_updated_list(guard);
-  std::vector<ControllerSpec> & new_unused_list = rt_controllers_wrapper_.get_unused_list(guard);
+  std::vector<ControllerSpec<CtrlType>> & new_unused_list = rt_controllers_wrapper_.get_unused_list(guard);
   RCLCPP_DEBUG(get_logger(), "Destruct controller");
   new_unused_list.clear();
   RCLCPP_DEBUG(get_logger(), "Destruct controller finished");
@@ -382,7 +358,7 @@ controller_interface::return_type ControllerManager::unload_controller(
   return controller_interface::return_type::OK;
 }
 
-std::vector<ControllerSpec> ControllerManager::get_loaded_controllers() const
+std::vector<ControllerSpec<controller_interface::ControllerInterfaceSharedPtr>> ControllerManager::get_loaded_controllers() const
 {
   std::lock_guard<std::recursive_mutex> guard(rt_controllers_wrapper_.controllers_lock_);
   return rt_controllers_wrapper_.get_updated_list(guard);
@@ -397,7 +373,7 @@ controller_interface::return_type ControllerManager::configure_controller(
 
   auto found_it = std::find_if(
     controllers.begin(), controllers.end(),
-    std::bind(controller_name_compare, std::placeholders::_1, controller_name));
+    std::bind(controller_name_compare<controller_interface::ControllerInterfaceSharedPtr>, std::placeholders::_1, controller_name));
 
   if (found_it == controllers.end())
   {
@@ -526,17 +502,23 @@ controller_interface::return_type ControllerManager::switch_controller(
                                   const std::string & action) {
     // lock controllers
     std::lock_guard<std::recursive_mutex> guard(rt_controllers_wrapper_.controllers_lock_);
+    std::lock_guard<std::recursive_mutex> guard_chainable(rt_chainable_controllers_wrapper_.controllers_lock_);
 
     // list all controllers to stop/start
     for (const auto & controller : controller_list)
     {
       const auto & updated_controllers = rt_controllers_wrapper_.get_updated_list(guard);
+      const auto & updated_chainable_controllers = rt_chainable_controllers_wrapper_.get_updated_list(guard);
 
       auto found_it = std::find_if(
         updated_controllers.begin(), updated_controllers.end(),
-        std::bind(controller_name_compare, std::placeholders::_1, controller));
+        std::bind(controller_name_compare<controller_interface::ControllerInterfaceSharedPtr>, std::placeholders::_1, controller));
 
-      if (found_it == updated_controllers.end())
+      auto found_chainable_it = std::find_if(
+        updated_chainable_controllers.begin(), updated_chainable_controllers.end(),
+        std::bind(controller_name_compare<controller_interface::ChainableControllerInterfaceSharedPtr>, std::placeholders::_1, controller));
+
+      if (found_it == updated_controllers.end() && found_chainable_it == updated_chainable_controllers.end())
       {
         RCLCPP_WARN(
           get_logger(),
@@ -581,8 +563,10 @@ controller_interface::return_type ControllerManager::switch_controller(
 
   // lock controllers
   std::lock_guard<std::recursive_mutex> guard(rt_controllers_wrapper_.controllers_lock_);
+  std::lock_guard<std::recursive_mutex> guard_chainable(rt_chainable_controllers_wrapper_.controllers_lock_);
 
-  const std::vector<ControllerSpec> & controllers = rt_controllers_wrapper_.get_updated_list(guard);
+  const auto & controllers = rt_controllers_wrapper_.get_updated_list(guard);
+  const auto & chainable_controllers = rt_chainable_controllers_wrapper_.get_updated_list(guard);
 
   // if a preceding controller is deactivated, all first-level controllers should be switched 'from'
   // chained mode
@@ -606,10 +590,11 @@ controller_interface::return_type ControllerManager::switch_controller(
         break;
       }
 
+      // This should be moved to lambda with a controller list as parameter
       for (const auto & cmd_itf_name : controller.c->command_interface_configuration().names)
       {
-        // controller that 'cmd_tf_name' belongs to
-        ControllersListIterator following_ctrl_it;
+        // controller that 'cmd_itf_name' belongs to
+        ChainableControllersListIterator following_ctrl_it;
         if (command_interface_is_reference_interface_of_controller(
               cmd_itf_name, controllers, following_ctrl_it))
         {
@@ -750,7 +735,7 @@ controller_interface::return_type ControllerManager::switch_controller(
   {
     auto controller_it = std::find_if(
       controllers.begin(), controllers.end(),
-      std::bind(controller_name_compare, std::placeholders::_1, *ctrl_it));
+      std::bind(controller_name_compare<controller_interface::ControllerInterfaceSharedPtr>, std::placeholders::_1, *ctrl_it));
     controller_interface::return_type ret = controller_interface::return_type::OK;
 
     // if controller is not inactive then do not do any following-controllers checks
@@ -885,7 +870,7 @@ controller_interface::return_type ControllerManager::switch_controller(
   {
     auto controller_it = std::find_if(
       controllers.begin(), controllers.end(),
-      std::bind(controller_name_compare, std::placeholders::_1, *ctrl_it));
+      std::bind(controller_name_compare<controller_interface::ControllerInterfaceSharedPtr>, std::placeholders::_1, *ctrl_it));
     controller_interface::return_type ret = controller_interface::return_type::OK;
 
     // if controller is not active then skip preceding-controllers checks
@@ -1017,8 +1002,11 @@ controller_interface::return_type ControllerManager::switch_controller(
       start_request_.erase(start_list_it);
     }
 
+    using CtrlType = controller_interface::ControllerInterfaceSharedPtr;
+
+    // TODO(chainalbe_process): make this lambda templated
     const auto list_interfaces = [this](
-                                   const ControllerSpec controller,
+                                   const ControllerSpec<CtrlType> controller,
                                    std::vector<std::string> & request_interface_list) {
       auto command_interface_config = controller.c->command_interface_configuration();
       std::vector<std::string> command_interface_names = {};
@@ -1091,7 +1079,7 @@ controller_interface::return_type ControllerManager::switch_controller(
   }
 
   // copy the controllers spec from the used to the unused list
-  std::vector<ControllerSpec> & to = rt_controllers_wrapper_.get_unused_list(guard);
+  std::vector<ControllerSpec<CtrlType>> & to = rt_controllers_wrapper_.get_unused_list(guard);
   to = controllers;
 
   // update the claimed interface controller info
@@ -1132,21 +1120,24 @@ controller_interface::return_type ControllerManager::switch_controller(
   return controller_interface::return_type::OK;
 }
 
+//TODO(chainalbe_process): can I add give here controllers_wrapper as parameter?
 controller_interface::ControllerInterfaceSharedPtr ControllerManager::add_controller_impl(
-  const ControllerSpec & controller)
+  const ControllerSpec<controller_interface::ControllerInterfaceSharedPtr> & controller)
 {
+  using CtrlType = controller_interface::ControllerInterfaceSharedPtr;
+
   // lock controllers
   std::lock_guard<std::recursive_mutex> guard(rt_controllers_wrapper_.controllers_lock_);
 
-  std::vector<ControllerSpec> & to = rt_controllers_wrapper_.get_unused_list(guard);
-  const std::vector<ControllerSpec> & from = rt_controllers_wrapper_.get_updated_list(guard);
+  std::vector<ControllerSpec<CtrlType>> & to = rt_controllers_wrapper_.get_unused_list(guard);
+  const std::vector<ControllerSpec<CtrlType>> & from = rt_controllers_wrapper_.get_updated_list(guard);
 
   // Copy all controllers from the 'from' list to the 'to' list
   to = from;
 
   auto found_it = std::find_if(
     to.begin(), to.end(),
-    std::bind(controller_name_compare, std::placeholders::_1, controller.info.name));
+    std::bind(controller_name_compare<controller_interface::ControllerInterfaceSharedPtr>, std::placeholders::_1, controller.info.name));
   // Checks that we're not duplicating controllers
   if (found_it != to.end())
   {
@@ -1185,7 +1176,7 @@ controller_interface::ControllerInterfaceSharedPtr ControllerManager::add_contro
   RCLCPP_DEBUG(get_logger(), "Realtime switches over to new controller list");
   rt_controllers_wrapper_.switch_updated_list(guard);
   RCLCPP_DEBUG(get_logger(), "Destruct controller");
-  std::vector<ControllerSpec> & new_unused_list = rt_controllers_wrapper_.get_unused_list(guard);
+  std::vector<ControllerSpec<CtrlType>> & new_unused_list = rt_controllers_wrapper_.get_unused_list(guard);
   new_unused_list.clear();
   RCLCPP_DEBUG(get_logger(), "Destruct controller finished");
 
@@ -1219,16 +1210,19 @@ void ControllerManager::manage_switch()
   // TODO(destogl): move here "do_switch = false"
 }
 
+// TODO(chainalbe_process): Make this a templated method?
 void ControllerManager::stop_controllers()
 {
-  std::vector<ControllerSpec> & rt_controller_list =
+  using CtrlType = controller_interface::ControllerInterfaceSharedPtr;
+
+  std::vector<ControllerSpec<CtrlType>> & rt_controller_list =
     rt_controllers_wrapper_.update_and_get_used_by_rt_list();
   // stop controllers
   for (const auto & request : stop_request_)
   {
     auto found_it = std::find_if(
       rt_controller_list.begin(), rt_controller_list.end(),
-      std::bind(controller_name_compare, std::placeholders::_1, request));
+      std::bind(controller_name_compare<controller_interface::ControllerInterfaceSharedPtr>, std::placeholders::_1, request));
     if (found_it == rt_controller_list.end())
     {
       RCLCPP_ERROR(
@@ -1252,9 +1246,12 @@ void ControllerManager::stop_controllers()
   }
 }
 
+// TODO(chainalbe_process): use here only chainable controllers
 void ControllerManager::switch_chained_mode()
 {
-  std::vector<ControllerSpec> & rt_controller_list =
+  using CtrlType = controller_interface::ControllerInterfaceSharedPtr;
+
+  std::vector<ControllerSpec<CtrlType>> & rt_controller_list =
     rt_controllers_wrapper_.update_and_get_used_by_rt_list();
 
   auto to_from_chained_mode = [this, rt_controller_list](
@@ -1264,7 +1261,7 @@ void ControllerManager::switch_chained_mode()
     {
       auto found_it = std::find_if(
         rt_controller_list.begin(), rt_controller_list.end(),
-        std::bind(controller_name_compare, std::placeholders::_1, request));
+        std::bind(controller_name_compare<controller_interface::ControllerInterfaceSharedPtr>, std::placeholders::_1, request));
       if (found_it == rt_controller_list.end())
       {
         RCLCPP_FATAL(
@@ -1315,15 +1312,18 @@ void ControllerManager::switch_chained_mode()
   to_from_chained_mode(from_chained_mode_request_, false);
 }
 
+// TODO(chainalbe_process): Make this a templated method?
 void ControllerManager::start_controllers()
 {
-  std::vector<ControllerSpec> & rt_controller_list =
+  using CtrlType = controller_interface::ControllerInterfaceSharedPtr;
+
+  std::vector<ControllerSpec<CtrlType>> & rt_controller_list =
     rt_controllers_wrapper_.update_and_get_used_by_rt_list();
   for (const auto & request : start_request_)
   {
     auto found_it = std::find_if(
       rt_controller_list.begin(), rt_controller_list.end(),
-      std::bind(controller_name_compare, std::placeholders::_1, request));
+      std::bind(controller_name_compare<controller_interface::ControllerInterfaceSharedPtr>, std::placeholders::_1, request));
     if (found_it == rt_controller_list.end())
     {
       RCLCPP_ERROR(
@@ -1436,6 +1436,8 @@ void ControllerManager::list_controllers_srv_cb(
   const std::shared_ptr<controller_manager_msgs::srv::ListControllers::Request>,
   std::shared_ptr<controller_manager_msgs::srv::ListControllers::Response> response)
 {
+  using CtrlType = controller_interface::ControllerInterfaceSharedPtr;
+
   // lock services
   RCLCPP_DEBUG(get_logger(), "list controller service called");
   std::lock_guard<std::mutex> services_guard(services_lock_);
@@ -1443,8 +1445,10 @@ void ControllerManager::list_controllers_srv_cb(
 
   // lock controllers
   std::lock_guard<std::recursive_mutex> guard(rt_controllers_wrapper_.controllers_lock_);
-  const std::vector<ControllerSpec> & controllers = rt_controllers_wrapper_.get_updated_list(guard);
+  const std::vector<ControllerSpec<CtrlType>> & controllers = rt_controllers_wrapper_.get_updated_list(guard);
   response->controller.resize(controllers.size());
+
+  // TODO(chainalbe_process): add here also data for chainable controllers
 
   for (size_t i = 0; i < controllers.size(); ++i)
   {
@@ -1494,6 +1498,8 @@ void ControllerManager::list_controller_types_srv_cb(
   RCLCPP_DEBUG(get_logger(), "list types service called");
   std::lock_guard<std::mutex> guard(services_lock_);
   RCLCPP_DEBUG(get_logger(), "list types service locked");
+
+  // TODO(chainalbe_process): add here also data for chainable controllers
 
   auto cur_types = loader_->getDeclaredClasses();
   for (const auto & cur_type : cur_types)
@@ -1643,6 +1649,7 @@ void ControllerManager::reload_controller_libraries_service_cb(
         active_controllers.push_back(controller.info.name);
       }
     }
+    // TODO(chainalbe_process): add here also data for chainable controllers
   }
   if (!active_controllers.empty() && !request->force_kill)
   {
@@ -1855,15 +1862,18 @@ std::vector<std::string> ControllerManager::get_controller_names()
   {
     names.push_back(controller.info.name);
   }
+  // TODO(chainalbe_process): add here also data for chainable controllers
   return names;
 }
 
 void ControllerManager::read() { resource_manager_->read(); }
 
+// TODO(chainalbe_process): add here also data for chainable controllers
 controller_interface::return_type ControllerManager::update(
   const rclcpp::Time & time, const rclcpp::Duration & period)
 {
-  std::vector<ControllerSpec> & rt_controller_list =
+  using CtrlType = controller_interface::ControllerInterfaceSharedPtr;
+  std::vector<ControllerSpec<CtrlType>> & rt_controller_list =
     rt_controllers_wrapper_.update_and_get_used_by_rt_list();
 
   auto ret = controller_interface::return_type::OK;
@@ -1911,14 +1921,16 @@ controller_interface::return_type ControllerManager::update(
 
 void ControllerManager::write() { resource_manager_->write(); }
 
-std::vector<ControllerSpec> &
-ControllerManager::RTControllerListWrapper::update_and_get_used_by_rt_list()
+template<typename CtrlType>
+std::vector<ControllerSpec<CtrlType>> &
+ControllerManager::RTControllerListWrapper<CtrlType>::update_and_get_used_by_rt_list()
 {
   used_by_realtime_controllers_index_ = updated_controllers_index_;
   return controllers_lists_[used_by_realtime_controllers_index_];
 }
 
-std::vector<ControllerSpec> & ControllerManager::RTControllerListWrapper::get_unused_list(
+template<typename CtrlType>
+std::vector<ControllerSpec<CtrlType>> & ControllerManager::RTControllerListWrapper<CtrlType>::get_unused_list(
   const std::lock_guard<std::recursive_mutex> &)
 {
   if (!controllers_lock_.try_lock())
@@ -1934,7 +1946,8 @@ std::vector<ControllerSpec> & ControllerManager::RTControllerListWrapper::get_un
   return controllers_lists_[free_controllers_list];
 }
 
-const std::vector<ControllerSpec> & ControllerManager::RTControllerListWrapper::get_updated_list(
+template<typename CtrlType>
+const std::vector<ControllerSpec<CtrlType>> & ControllerManager::RTControllerListWrapper<CtrlType>::get_updated_list(
   const std::lock_guard<std::recursive_mutex> &) const
 {
   if (!controllers_lock_.try_lock())
@@ -1945,7 +1958,8 @@ const std::vector<ControllerSpec> & ControllerManager::RTControllerListWrapper::
   return controllers_lists_[updated_controllers_index_];
 }
 
-void ControllerManager::RTControllerListWrapper::switch_updated_list(
+template<typename CtrlType>
+void ControllerManager::RTControllerListWrapper<CtrlType>::switch_updated_list(
   const std::lock_guard<std::recursive_mutex> &)
 {
   if (!controllers_lock_.try_lock())
@@ -1958,12 +1972,14 @@ void ControllerManager::RTControllerListWrapper::switch_updated_list(
   wait_until_rt_not_using(former_current_controllers_list_);
 }
 
-int ControllerManager::RTControllerListWrapper::get_other_list(int index) const
+template<typename CtrlType>
+int ControllerManager::RTControllerListWrapper<CtrlType>::get_other_list(int index) const
 {
   return (index + 1) % 2;
 }
 
-void ControllerManager::RTControllerListWrapper::wait_until_rt_not_using(
+template<typename CtrlType>
+void ControllerManager::RTControllerListWrapper<CtrlType>::wait_until_rt_not_using(
   int index, std::chrono::microseconds sleep_period) const
 {
   while (used_by_realtime_controllers_index_ == index)
@@ -1975,6 +1991,9 @@ void ControllerManager::RTControllerListWrapper::wait_until_rt_not_using(
     std::this_thread::sleep_for(sleep_period);
   }
 }
+
+// template class ControllerManager::RTControllerListWrapper<controller_interface::ControllerInterfaceSharedPtr>;
+// template class ControllerManager::RTControllerListWrapper<controller_interface::ChainableControllerInterfaceSharedPtr>;
 
 unsigned int ControllerManager::get_update_rate() const { return update_rate_; }
 

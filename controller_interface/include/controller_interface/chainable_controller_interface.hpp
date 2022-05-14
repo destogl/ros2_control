@@ -110,6 +110,8 @@ private:
   bool in_chained_mode_ = false;
 };
 
+using ChainableControllerInterfaceSharedPtr = std::shared_ptr<ChainableControllerInterface>;
+
 }  // namespace controller_interface
 
 #endif  // CONTROLLER_INTERFACE__CHAINABLE_CONTROLLER_INTERFACE_HPP_

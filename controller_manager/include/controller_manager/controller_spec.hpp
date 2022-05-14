@@ -33,10 +33,11 @@ namespace controller_manager
  * as information about the controller, \ref info.
  *
  */
+template<typename CtrlType>
 struct ControllerSpec
 {
   hardware_interface::ControllerInfo info;
-  controller_interface::ControllerInterfaceSharedPtr c;
+  CtrlType c;
 };
 
 }  // namespace controller_manager
