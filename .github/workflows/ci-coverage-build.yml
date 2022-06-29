@@ -10,7 +10,7 @@ on:
 jobs:
   coverage:
     name: coverage build
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     strategy:
       fail-fast: false
     env:
@@ -52,5 +52,5 @@ jobs:
           name: codecov-umbrella
       - uses: actions/upload-artifact@v1
         with:
-          name: colcon-logs-${{ matrix.os }}
+          name: colcon-logs-coverage-rolling
           path: ros_ws/log
